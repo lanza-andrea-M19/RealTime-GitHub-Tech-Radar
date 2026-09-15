@@ -78,3 +78,82 @@ def get_table_schema(table_name: str = "raw_github_events") -> str:
                 return f"Schema for {table_name}:\n{formatted}"
     except Exception as e:
         return f"Error retrieving schema: {e}"
+
+
+class VectorSearchInput(BaseModel):
+    query: str = Field(
+        description="The natural language concept, error message, bug symptom, or topic to search semantically."
+    )
+    repo: str | None = Field(
+        default=None,
+        description="Optional repository filter (e.g. 'duckdb/duckdb', 'pola-rs/polars', 'pydantic/pydantic').",
+    )
+    top_k: int = Field(
+        default=5,
+        description="Number of semantically relevant issues to retrieve (default 5, max 10).",
+    )
+
+
+@tool(args_schema=VectorSearchInput)
+def semantic_vector_search(query: str, repo: str | None = None, top_k: int = 5) -> str:
+    """Performs semantic similarity vector search across issue descriptions and bodies using pgvector embeddings.
+
+    Ideal for conceptual queries, finding bugs by symptoms/error messages, workarounds, or searching across languages.
+    """
+    if not verify_connection():
+        return "Error: Database is offline. Ensure PostgreSQL Docker container is running."
+
+    try:
+        from src.embeddings.indexer import get_embedding_model
+        embedder = get_embedding_model()
+        query_vec = embedder.embed_query(query)
+    except Exception as e:
+        return f"Error generating query embedding: {e}"
+
+    top_k = min(max(1, top_k), 10)
+    params: dict[str, Any] = {"vec": query_vec, "top_k": top_k}
+    where_clauses = []
+    if repo:
+        where_clauses.append("e.repo = %(repo)s")
+        params["repo"] = repo
+
+    where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    sql_query = f"""
+    SELECT 
+        e.repo,
+        e.issue_number,
+        e.title,
+        ROUND((1 - (e.embedding <=> %(vec)s::vector))::numeric, 4) AS similarity_score,
+        r.state,
+        r.author,
+        r.upstream_created_at,
+        e.chunk_text
+    FROM issue_embeddings e
+    JOIN raw_github_events r ON e.event_id = r.id
+    {where_str}
+    ORDER BY e.embedding <=> %(vec)s::vector
+    LIMIT %(top_k)s;
+    """
+
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql_query, params)
+                rows = cur.fetchall()
+
+                if not rows:
+                    return f"No semantically similar issues found for query: '{query}'."
+
+                formatted_results = []
+                for r in rows:
+                    formatted_results.append(
+                        f"• [{r['repo']}#{r['issue_number']}] {r['title']}\n"
+                        f"  Similarity: {r['similarity_score']} | State: {r['state']} | Date: {r['upstream_created_at']}\n"
+                        f"  URL: https://github.com/{r['repo']}/issues/{r['issue_number']}\n"
+                        f"  Snippet: {r['chunk_text'][:250]}..."
+                    )
+                return "\n\n".join(formatted_results)
+    except Exception as e:
+        return f"Database vector search error: {e}"
+

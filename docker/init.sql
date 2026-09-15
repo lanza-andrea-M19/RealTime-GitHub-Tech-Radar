@@ -25,3 +25,20 @@ CREATE INDEX IF NOT EXISTS idx_raw_events_repo ON raw_github_events(repo);
 CREATE INDEX IF NOT EXISTS idx_raw_events_created ON raw_github_events(upstream_created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_raw_events_ingested ON raw_github_events(ingested_at DESC);
 CREATE INDEX IF NOT EXISTS idx_raw_events_state ON raw_github_events(state);
+
+-- Issue vector embeddings table
+CREATE TABLE IF NOT EXISTS issue_embeddings (
+    id BIGSERIAL PRIMARY KEY,
+    event_id BIGINT NOT NULL REFERENCES raw_github_events(id) ON DELETE CASCADE,
+    repo VARCHAR(255) NOT NULL,
+    issue_number INT NOT NULL,
+    title TEXT NOT NULL,
+    chunk_text TEXT NOT NULL,
+    embedding vector(768) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_event_embedding UNIQUE (event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_issue_embeddings_repo ON issue_embeddings(repo);
+CREATE INDEX IF NOT EXISTS idx_issue_embeddings_vector ON issue_embeddings USING hnsw (embedding vector_cosine_ops);
+

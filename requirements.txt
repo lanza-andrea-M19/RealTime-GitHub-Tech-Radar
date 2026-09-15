@@ -7,6 +7,7 @@ pydantic-settings>=2.2.1
 
 # Database Drivers & Vector
 psycopg[binary]>=3.1.18
+psycopg-pool>=3.2.0
 duckdb>=1.0.0
 
 # Environment Management
@@ -17,6 +18,9 @@ langchain>=0.2.0
 langchain-core>=0.2.0
 langchain-google-genai>=1.0.0
 google-generativeai>=0.7.0
+langgraph>=1.2.0
+langgraph-checkpoint-postgres>=3.1.0
 
 # CLI & UX
 rich>=13.7.0
+
