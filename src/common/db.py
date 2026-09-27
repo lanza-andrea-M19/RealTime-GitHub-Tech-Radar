@@ -6,9 +6,13 @@ from src.common.config import settings
 
 
 @contextmanager
-def get_db() -> Generator[psycopg.Connection, None, None]:
+def get_db(connect_timeout: int = 2) -> Generator[psycopg.Connection, None, None]:
     """Provides a transactional database connection context."""
-    conn = psycopg.connect(settings.database_url, row_factory=dict_row)
+    conn = psycopg.connect(
+        settings.database_url,
+        row_factory=dict_row,
+        connect_timeout=connect_timeout,
+    )
     try:
         yield conn
     finally:

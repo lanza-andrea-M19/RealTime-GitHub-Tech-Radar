@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "tech-radar": {
+      "command": "python",
+      "args": ["-m", "src.mcp_server"],
+      "env": {
+        "DATABASE_URL": "postgresql://techradar:techradar@localhost:5433/techradar",
+        "GEMINI_API_KEY": "YOUR_GEMINI_API_KEY",
+        "GITHUB_TOKEN": "YOUR_OPTIONAL_GITHUB_TOKEN"
+      }
+    }
+  }
+}
