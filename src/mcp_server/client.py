@@ -121,11 +121,14 @@ def main() -> None:
             try:
                 args_dict = json.loads(parsed.call_args)
             except Exception:
-                # Fallback to key=val pairs
-                for part in parsed.call_args.split(","):
-                    if "=" in part:
-                        k, v = part.split("=", 1)
-                        args_dict[k.strip()] = v.strip()
+                if "=" in parsed.call_args and parsed.call_args.count("=") == 1:
+                    k, v = parsed.call_args.split("=", 1)
+                    args_dict[k.strip()] = v.strip()
+                else:
+                    for part in parsed.call_args.split(","):
+                        if "=" in part:
+                            k, v = part.split("=", 1)
+                            args_dict[k.strip()] = v.strip()
         asyncio.run(execute_tool_call(parsed.command, parsed.args, parsed.call, args_dict))
     else:
         asyncio.run(inspect_server(parsed.command, parsed.args))
