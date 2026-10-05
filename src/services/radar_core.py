@@ -166,7 +166,7 @@ def get_monitored_repos_summary() -> str:
 
 
 def get_database_stats() -> str:
-    """Returns total counts of raw GitHub events and vector embeddings."""
+    """Returns total counts of raw GitHub events, vector embeddings, and real-time alerts."""
     if not verify_connection():
         return "Error: Database is offline."
 
@@ -179,10 +179,19 @@ def get_database_stats() -> str:
                 cur.execute("SELECT COUNT(*) as embed_count FROM issue_embeddings;")
                 embed_count = cur.fetchone()["embed_count"]
 
+                # Optional alerts count if table exists
+                alerts_count = 0
+                try:
+                    cur.execute("SELECT COUNT(*) as alert_count FROM alerts;")
+                    alerts_count = cur.fetchone()["alert_count"]
+                except Exception:
+                    conn.rollback()
+
                 return json.dumps(
                     {
                         "total_raw_events": raw_count,
                         "total_vector_embeddings": embed_count,
+                        "total_realtime_alerts": alerts_count,
                         "database_status": "online",
                     },
                     indent=2,
@@ -214,3 +223,80 @@ def fetch_recent_issues_for_repo(repo: str, limit: int = 10) -> str:
                 return json.dumps(formatted, indent=2, default=str)
     except Exception as e:
         return f"Error fetching issues for {repo}: {e}"
+
+
+def save_realtime_alert(alert_data: dict[str, Any]) -> int | None:
+    """Stores a real-time early warning alert into the alerts table."""
+    if not verify_connection():
+        logger.warning("Database offline; cannot persist real-time alert.")
+        return None
+
+    insert_query = """
+    INSERT INTO alerts (
+        repo, issue_number, title, alert_type, severity,
+        summary, affected_versions, workaround, payload
+    ) VALUES (
+        %(repo)s, %(issue_number)s, %(title)s, %(alert_type)s, %(severity)s,
+        %(summary)s, %(affected_versions)s, %(workaround)s, %(payload)s::jsonb
+    ) RETURNING id;
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    insert_query,
+                    {
+                        "repo": alert_data["repo"],
+                        "issue_number": alert_data.get("issue_number"),
+                        "title": alert_data["title"],
+                        "alert_type": alert_data["alert_type"],
+                        "severity": alert_data["severity"],
+                        "summary": alert_data.get("summary", ""),
+                        "affected_versions": alert_data.get("affected_versions"),
+                        "workaround": alert_data.get("workaround"),
+                        "payload": json.dumps(alert_data.get("payload", {})),
+                    },
+                )
+                new_id = cur.fetchone()["id"]
+            conn.commit()
+            return new_id
+    except Exception as e:
+        logger.error(f"Failed to save real-time alert: {e}")
+        return None
+
+
+def fetch_active_alerts(repo: str | None = None, severity: str | None = None, limit: int = 20) -> str:
+    """Retrieves real-time alerts stored in the database."""
+    if not verify_connection():
+        return "Error: Database is offline."
+
+    where_clauses = []
+    params: dict[str, Any] = {"limit": limit}
+
+    if repo:
+        where_clauses.append("repo = %(repo)s")
+        params["repo"] = repo
+    if severity:
+        where_clauses.append("severity = %(severity)s")
+        params["severity"] = severity
+
+    where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    query = f"""
+    SELECT id, repo, issue_number, title, alert_type, severity, summary, affected_versions, workaround, created_at
+    FROM alerts
+    {where_str}
+    ORDER BY created_at DESC
+    LIMIT %(limit)s;
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                if not rows:
+                    return "No active real-time alerts found."
+                formatted = [dict(r) for r in rows]
+                return json.dumps(formatted, indent=2, default=str)
+    except Exception as e:
+        return f"Error retrieving real-time alerts: {e}"

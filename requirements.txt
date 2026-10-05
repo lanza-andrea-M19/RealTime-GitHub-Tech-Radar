@@ -24,6 +24,10 @@ langgraph-checkpoint-postgres>=3.1.0
 # CLI & UX
 rich>=13.7.0
 
+# Real-Time Streaming & Webhooks
+fastapi>=0.115.0
+aiokafka>=0.11.0
+
 # Model Context Protocol (MCP)
 mcp>=2.2.0
 

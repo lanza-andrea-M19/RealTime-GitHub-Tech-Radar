@@ -29,3 +29,33 @@ def verify_connection() -> bool:
                 return res is not None and res["?column?"] == 1
     except Exception:
         return False
+
+
+def ensure_schema() -> bool:
+    """Ensures required tables and indexes exist, including the real-time alerts table."""
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS alerts (
+                    id BIGSERIAL PRIMARY KEY,
+                    repo VARCHAR(255) NOT NULL,
+                    issue_number INT,
+                    title TEXT NOT NULL,
+                    alert_type VARCHAR(64) NOT NULL,
+                    severity VARCHAR(32) NOT NULL,
+                    summary TEXT,
+                    affected_versions TEXT,
+                    workaround TEXT,
+                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                    payload JSONB
+                );
+                CREATE INDEX IF NOT EXISTS idx_alerts_repo ON alerts(repo);
+                CREATE INDEX IF NOT EXISTS idx_alerts_created ON alerts(created_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
+                CREATE INDEX IF NOT EXISTS idx_alerts_type ON alerts(alert_type);
+                """)
+            conn.commit()
+            return True
+    except Exception:
+        return False

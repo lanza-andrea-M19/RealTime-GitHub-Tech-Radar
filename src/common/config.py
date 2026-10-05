@@ -33,5 +33,18 @@ class Settings(BaseSettings):
     langchain_api_key: str | None = Field(default=None, alias="LANGCHAIN_API_KEY")
     langchain_project: str = Field(default="tech-radar-pipeline", alias="LANGCHAIN_PROJECT")
 
+    # Real-Time Streaming & Redpanda/Kafka
+    kafka_bootstrap_servers: str = Field(default="localhost:19092", alias="KAFKA_BOOTSTRAP_SERVERS")
+    kafka_topic_events: str = Field(default="github-raw-events", alias="KAFKA_TOPIC_EVENTS")
+    kafka_topic_alerts: str = Field(default="techradar-alerts", alias="KAFKA_TOPIC_ALERTS")
+
+    # Webhook Server & Poller Daemon
+    webhook_host: str = Field(default="0.0.0.0", alias="WEBHOOK_HOST")
+    webhook_port: int = Field(default=8080, alias="WEBHOOK_PORT")
+    webhook_secret: str | None = Field(default=None, alias="WEBHOOK_SECRET")
+    poll_interval_seconds: int = Field(default=30, alias="POLL_INTERVAL_SECONDS")
+    spike_window_seconds: int = Field(default=300, alias="SPIKE_WINDOW_SECONDS")
+    spike_threshold: int = Field(default=5, alias="SPIKE_THRESHOLD")
+
 
 settings = Settings()

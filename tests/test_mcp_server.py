@@ -94,3 +94,23 @@ async def test_read_repositories_resource():
     assert "duckdb/duckdb" in content
     assert "pola-rs/polars" in content
     assert "pydantic/pydantic" in content
+
+
+@pytest.mark.anyio
+async def test_mcp_client_stdio_connection():
+    """Verify that MCP client can spawn and connect to the server via stdio."""
+    import sys
+    from mcp.client.stdio import stdio_client, StdioServerParameters
+    from mcp.client.session import ClientSession
+
+    server_params = StdioServerParameters(command=sys.executable, args=["-m", "src.mcp_server"])
+    async with stdio_client(server_params) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            init_res = await session.initialize()
+            assert init_res.protocol_version is not None
+
+            # Verify tool list over real stdio connection
+            tools = await session.list_tools()
+            tool_names = {t.name for t in tools.tools}
+            assert "get_active_alerts" in tool_names
+            assert "triage_incoming_issue" in tool_names

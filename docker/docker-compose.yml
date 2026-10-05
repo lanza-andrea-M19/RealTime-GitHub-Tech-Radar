@@ -1,3 +1,5 @@
+name: techradar
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
